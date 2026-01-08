@@ -7,20 +7,21 @@ from docx import Document
 from loguru import logger
 from typing import List, Dict, Any
 import os
+from camel.toolkits import FunctionTool
 
 from pathlib import Path
 #当前脚本所在目录
 HERE = Path(__file__).resolve().parent
 #项目根目录
-ROOT = HERE.parent.parent
+ROOT = HERE.parent.parent.parent
 
 #配置日志到控制台
 logger = logger.bind(module="structure_parser")
 
 # 导入标题提取器
-from .title_extractor import TitleExtractor
+from ..title_extractor import TitleExtractor
 
-def parse_structure(doc_path: str = f"{ROOT}/示例数据/test.docx", pdf_path: str= f"{ROOT}/示例数据/test.pdf") -> List[Dict[str, Any]]:
+def page_index_tool(doc_path: str = f"{ROOT}/示例数据/test.docx", pdf_path: str= f"{ROOT}/示例数据/test.pdf") -> List[Dict[str, Any]]:
     """
     解析Word文档的结构信息
     Args:
@@ -51,20 +52,17 @@ def parse_structure(doc_path: str = f"{ROOT}/示例数据/test.docx", pdf_path: 
         logger.error(f"检查路径参数时出错: {e}")
         return []
 
-    # 初始化结构信息列表
     structure_info = []
 
     if not os.path.exists(doc_path):
         logger.error(f"文件不存在: {doc_path}")
         return structure_info
-    # 读取Word文档
     try:
         doc = Document(doc_path)
     except Exception as e:
         logger.error(f"读取Word文档时出错: {e}")
         return structure_info
 
-    # 提取标题信息
     headings = extract_headings(doc)
     if not headings:
         logger.warning("未在文档中检测到标题样式的段落")
@@ -108,8 +106,8 @@ def parse_structure(doc_path: str = f"{ROOT}/示例数据/test.docx", pdf_path: 
         structure_info.append(
             {
                 "title": heading,
-                "start_page": start_page,
-                "end_page": end_page
+                "start_page": start_page+1,
+                "end_page": end_page+1
             }
         )
 
@@ -128,18 +126,14 @@ def extract_headings(doc: Document, min_score: float = 60.0) -> List[str]:
     Returns:
         List[str]: 提取的标题文本列表
     """
-    # 初始化标题提取器
     extractor = TitleExtractor()
     
-    # 提取标题，使用指定的评分阈值
     titles = extractor.extract(doc, min_score=min_score)
     
-    # 提取标题文本，保持与原有函数接口兼容
     headings = [title['text'] for title in titles]
     
     logger.info(f"使用评分系统提取到 {len(headings)} 个标题（阈值: {min_score}）")
     
-    # 统计各级标题数量
     level_counts = {}
     for title in titles:
         level = title['level']
@@ -149,17 +143,6 @@ def extract_headings(doc: Document, min_score: float = 60.0) -> List[str]:
         logger.debug(f"标题级别分布: {level_counts}")
     
     return headings
-
-    """
-    获取标题所在的页码
-    Args:
-        heading (str): 标题文本
-    Returns:
-        int: 标题所在的页码
-    """
-    # 这里需要实现具体的逻辑来获取标题所在页码
-    # 可能需要结合PDF解析库如PyMuPDF来实现
-    return 1  # 示例返回第一页
 
 def get_page_number_for_heading(pdf_doc: fitz.Document, target_text: str, start_page: int = 0) -> int:
         """
@@ -174,17 +157,18 @@ def get_page_number_for_heading(pdf_doc: fitz.Document, target_text: str, start_
         # 从 start_page 开始，直到文档结束
         for i in range(start_page, total_pages):
             page = pdf_doc[i]
-            # hit_max=1: 只要找到一处就立马返回，不再扫描整页其他位置
             if page.search_for(clean_text):
                 return i
         
         return -1
 
+def get_page_index_tool()->FunctionTool:
+    return FunctionTool(page_index_tool)
 
 def main():
     docs_path = ROOT/"示例数据/test.docx"
     pdf_path = ROOT/"示例数据/test.pdf"
-    structure = parse_structure(docs_path, pdf_path)
+    structure = page_index_tool(docs_path, pdf_path)
     for item in structure:
         logger.info(f"标题: {item['title']}, 起始页: {item['start_page']}, 结束页: {item['end_page']}")
 
