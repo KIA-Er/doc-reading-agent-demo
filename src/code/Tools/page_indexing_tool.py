@@ -19,7 +19,7 @@ ROOT = HERE.parent.parent.parent
 logger = logger.bind(module="structure_parser")
 
 # 导入标题提取器
-from ..title_extractor import TitleExtractor
+from .title_extractor import TitleExtractor
 
 def page_index_tool(doc_path: str = f"{ROOT}/示例数据/test.docx", pdf_path: str= f"{ROOT}/示例数据/test.pdf") -> List[Dict[str, Any]]:
     """

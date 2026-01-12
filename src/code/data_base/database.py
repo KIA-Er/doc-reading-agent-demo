@@ -21,6 +21,7 @@ class VectorSchema(BaseModel):
     id: Optional[int] = Field(default=None, description="文档唯一标识符")
     vector: List[float]
     page_index: Optional[int]
+    image_url: Optional[str]= Field(default=None, description="图片的URL")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="附加的元数据字段")
 
 class VectorDatabase:
@@ -31,6 +32,8 @@ class VectorDatabase:
             *,
             embedding_func: Callable[[str | List[str]], List[List[float]]] = None,
             vlm= None,
+            collection_name: str = COLLECTION_NAME,
+            vector_dim: int = settings.JINA_EMBEDDING_MODEL_DIMS,
             ):
 
         self.embedding_func = embedding_func
@@ -38,9 +41,10 @@ class VectorDatabase:
             uri=uri,
             db_name=db_name,
         )
-        self.vector_dim = settings.JINA_EMBEDDING_MODEL_DIMS
+        self.vector_dim = vector_dim
 
-        self.client.load_collection(COLLECTION_NAME)
+        if self.has_collection(collection_name):
+            self.client.load_collection(collection_name)
 
     def create_collection(self, collection_name: str):
         logger.info(f"KAIEr:创建Milvus集合: {collection_name}")
@@ -74,6 +78,12 @@ class VectorDatabase:
         schema.add_field(
             field_name="page_index",
             datatype= DataType.INT64,
+        )
+
+        schema.add_field(
+            field_name="image_url",
+            datatype= DataType.VARCHAR,
+            max_length=256,
         )
 
         self.client.create_collection(
@@ -121,7 +131,7 @@ class VectorDatabase:
             collection_name=COLLECTION_NAME,
             data=[vector],
             limit=top_k,
-            output_fields=["id", "vector", "page_index"]
+            output_fields=["id", "vector", "page_index", "image_url"],
         )
 
         return search_result
@@ -143,6 +153,7 @@ class VectorDatabase:
                     id=idx,
                     vector=await self.embedding_func(image=img),
                     page_index=idx + 1,
+                    image_url=f"/mnt/ssd2/steins/wenkai/project/doc-reading-agent-demo/demo_data_images/test_{idx+1}.jpeg"
                 )
             )
 
@@ -155,37 +166,68 @@ class VectorDatabase:
         logger.info(f"KIAEr:已添加文件 {file_path} 到向量数据库，共 {insert_count} 页。")
 
         return insert_count
+    
+    def get_page_index_by_image_url(self, collection_name: str=COLLECTION_NAME, image_url: str=None) -> Optional[int]:
+        """
+        根据 image_url 精确查询对应的 page_index
+        
+        Args:
+            collection_name: 集合名称
+            image_url: 要查询的图片路径字符串
+            
+        Returns:
+            int: 对应的页码，如果没找到返回 None
+        """
+        filter_expr = f'image_url == "{image_url}"'
+        
+        try: 
+            res = self.client.query(
+                collection_name=collection_name,
+                filter=filter_expr,
+                output_fields=["page_index"], # 只返回需要的字段
+                limit=1 # 既然是精确查找，只要一条
+            )
+            
+            if res and len(res) > 0:
+                return res[0].get("page_index")
+            else:
+                logger.warning(f"未找到 image_url 为 {image_url} 的记录")
+                return None
+                
+        except Exception as e:
+            logger.error(f"查询 page_index 失败: {e}")
+            return None
+        
+    def get_page_indexes_by_image_urls(self, collection_name: str=COLLECTION_NAME, image_urls: List[str]=[]) -> List[Optional[int]]:
+
+       pass
 
     def has_collection(self, collection_name: str) -> bool:
         return self.client.has_collection(collection_name)
 
-logger.disable("src.code.embedding")
 
 emb_model = JinaEmbeddingClient()
-vec_db = VectorDatabase(
+vector_db = VectorDatabase(
     uri=VECTOR_DATABASE_URI,
     db_name=VECTOR_DATABASE_NAME,
     embedding_func=emb_model.get_embedding,
     )
 
 root_path = Path.cwd()
-file_path = os.path.join(root_path, "示例数据", "test.pdf")
+file_path = os.path.join(root_path, "demo_data", "test.pdf")
 
+# vector_db.delete_collection(COLLECTION_NAME)
+# vector_db.create_collection(COLLECTION_NAME)
 # pdf_doc = convert_from_path(file_path, first_page=1, last_page=1)
 # img = convert_to_jpeg(pdf_doc)[0]
+if __name__ == "__main__":
+    
+    logger.disable("src.code.embedding")
+    print("Milvus集合列表:", vector_db.client.list_collections())
+    asyncio.run(vector_db.add_documents(file_path=file_path))
 
-# print("Milvus集合列表:", vec_db.client.list_collections())
-# vector1 = VectorSchema(
-#     id=0,
-#     vector=asyncio.run(emb_model.get_embedding(image=img)),
-#     page_index=1,
-# )
-# result = asyncio.run(vec_db.query(query="这是什么？", top_k=10))
-# print(type(result))
+    # asyncio.run(vector_db.add_documents(file_path=file_path))
 
-# asyncio.run(vec_db.add_documents(file_path=file_path))
+    # result = asyncio.run(vector_db.query(query="我想知道第二章  采购需求的内容。", top_k=10))
+    # best_one_page =result[0][0]['page_index']
 
-result = asyncio.run(vec_db.query(query="我想知道第二章  采购需求的内容。", top_k=10))
-best_one_page =result[0][0]['page_index']
-
-reranker = 

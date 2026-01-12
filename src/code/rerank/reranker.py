@@ -9,14 +9,17 @@ import asyncio
 
 logger = logger.bind(module="JINA_Reranker")
 
+RERANKER_BASE_URL = "http://192.168.3.112:9907/v1/rerank"
+RERANKER_MODEL_NAME = "jina/jina-rerank-m0"
+
 class Reranker():
     def __init__(
             self, 
-            baseurl: str = "http://192.168.3.112:9907/v1/rerank", 
+            baseurl: str = RERANKER_BASE_URL, 
             api_key: str = "", 
-            model_name: str = "jina/jina-rerank-m0",
+            model_name: str = RERANKER_MODEL_NAME,
             return_documents: bool = False,
-            top_k: int =5,
+            top_k: int =10,
             ):
         self.base_url = baseurl if baseurl else settings.JINA_RERANKER_MODEL_BASE_URL
         self.api_key = api_key if api_key else None
@@ -67,6 +70,12 @@ class Reranker():
                 raise 
 
 # 测试代码
-reranker = Reranker()
-result = asyncio.run(reranker.rerank(query="这是什么？", img_urls=[f"/mnt/ssd2/steins/wenkai/project/doc-reading-agent-demo/示例数据_images/test_{i}.jpeg"for i in range(1,67)]))
-print(result)
+reranker = Reranker(return_documents=True)
+
+if __name__ == "__main__":
+    response = asyncio.run(reranker.rerank(
+        query="""我想了解一下采购需求有什么内容？""", 
+        img_urls=[f"/mnt/ssd2/steins/wenkai/project/doc-reading-agent-demo/demo_data_images/test_{i}.jpeg"for i in range(1,67)]
+        ))
+    indexes = [ item['index'] for item in response['results']]
+    print(response['results'])

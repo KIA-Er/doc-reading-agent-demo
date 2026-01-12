@@ -155,8 +155,8 @@ if __name__ == "__main__":
     jinaclient = JinaEmbeddingClient()
 
     root_path = Path.cwd()
-    print(root_path)
-    file_path = os.path.join(root_path, "示例数据", "test.pdf")
+    file_path = os.path.join(root_path, "demo_data", "test.pdf")
+    
     pdf_doc = convert_from_path(file_path, first_page=1, last_page=1)
     images = convert_to_jpeg(pdf_doc)
 

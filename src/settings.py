@@ -170,6 +170,14 @@ class Settings:
     @property
     def REDIS_DATABASE(self) -> int:
         return int(os.getenv("REDIS_DATABASE", "0"))
+    
+    @property
+    def QWEN3_VL_EMBEDDING_PATH(self) -> str:
+        return os.getenv("QWEN3_VL_EMBEDDING_PATH", "EMPTY")
+    
+    @property
+    def QWEN3_VL_RERANKER_PATH(self) -> str:
+        return os.getenv("QWEN3_VL_RERANKER_PATH", "EMPTY")
 
 
 # 创建全局配置实例
